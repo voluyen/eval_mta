@@ -1,0 +1,13 @@
+# Requirements for eval only (run_eval.py, evaluator.py, arguments.py)
+# Training dependencies (llm_train.py, student.py, teacher_llm.py, etc.) are NOT included
+
+torch>=2.1.2
+transformers>=4.42.4
+peft>=0.10.0
+datasets>=2.18.0
+rouge-score>=0.1.2
+tqdm>=4.66.0
+numpy>=1.26.0
+accelerate>=0.27.0
+sentencepiece>=0.1.99
+protobuf>=3.20.0
