@@ -4,7 +4,7 @@ SEED=42
 
 # ==== Định nghĩa các biến ====
 BASE_PATH=.
-MODEL_PATH="distillm-master/results/gpt2/train/distill_0.1B_1.5B_on_srkl/3570"
+MODEL_PATH="/teamspace/studios/this_studio/downloaded_ckpt/gpt2/gpt2-base/mta_dskd_word_level/forward_kl-bf16__teacher_qwen1.5__kd^rate0.5__kd^temp2.0__epoch10__bsz8x1x1x1_8__lr0.0005__proj^lr0.0005/epoch10_step14300_loss7.0408"
 OUTPUT_DIR="${BASE_PATH}/eval_outputs/${MODEL_PATH}"
 
 
@@ -19,10 +19,10 @@ OPTS+=" --teacher_layers_mapping 32"
 OPTS+=" --student_encoder_layers_finetuned 22"
 
 # training
-OPTS+=" --val_batch_size 128"
+OPTS+=" --val_batch_size 256"
 
 # devices
-OPTS+=" --student_device cuda:1"
+OPTS+=" --student_device cuda:0"
 
 # models
 OPTS+=" --output_dir ${OUTPUT_DIR}"
