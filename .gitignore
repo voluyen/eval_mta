@@ -2,3 +2,7 @@ results/
 eval_outputs/
 plots/
 dwa_mta_checkpoints/
+__pycache__/
+*.pyc
+*.pyo
+.claude/
