@@ -80,11 +80,7 @@ echo "======================================================"
 
 # Lấy danh sách checkpoint (tên là số nguyên), sắp xếp theo số bước
 mapfile -t CKPTS < <(find "${LORA_ROOT}" -maxdepth 1 -mindepth 1 -type d \
-    | grep -E '/[0-9]+$' \
-    | awk -F/ '{print $NF, $0}' \
-    | sort -n \
-    | head -3 \
-    | awk '{print $2}')
+    | grep -E '/[0-9]+$')
 
 if [ "${#CKPTS[@]}" -eq 0 ]; then
     echo "Không tìm thấy checkpoint nào trong ${LORA_ROOT}"
