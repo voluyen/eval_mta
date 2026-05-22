@@ -13,8 +13,8 @@ CKPT_ROOT="..."
 # Chế độ: "full" (checkpoint là full-model) hoặc "lora" (checkpoint là adapter)
 PEFT="lora"
 # Base model dùng khi PEFT="lora" (full-model thì bỏ qua)
-BASE_MODEL="meta-llama/Llama-3.2-3B"
-TOKENIZER="meta-llama/Llama-3.2-3B"
+BASE_MODEL="model_hub/tinyllama/tinyllama-1.1b-3T"
+TOKENIZER="model_hub/tinyllama/tinyllama-1.1b-3T"
 BATCH_SIZE=80
 # Danh sách GPU chạy song song
 DEVICES=("cuda:0" "cuda:1")
