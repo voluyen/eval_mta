@@ -88,10 +88,14 @@ echo "======================================================"
 # Lấy danh sách checkpoint = các thư mục con có config.json hoặc adapter_config.json
 mapfile -t CKPTS < <(
     find "${CKPT_ROOT}" -maxdepth 1 -mindepth 1 -type d | while read d; do
-        if [ -f "$d/config.json" ] || [ -f "$d/adapter_config.json" ]; then echo "$d"; fi
+        if [ -f "$d/config.json" ] || [ -f "$d/adapter_config.json" ]; then
+            epoch=$(basename "$d" | grep -oP 'epoch\K[0-9]+')
+            echo "${epoch} ${d}"
+        fi
     done \
-    | sort \
-    | head -3
+    | sort -n \
+    | head -3 \
+    | awk '{print $2}'
 )
 
 if [ "${#CKPTS[@]}" -eq 0 ]; then

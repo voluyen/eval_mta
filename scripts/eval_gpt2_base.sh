@@ -15,6 +15,7 @@ PEFT="full"
 BASE_MODEL="openai-community/gpt2"
 TOKENIZER="openai-community/gpt2"
 BATCH_SIZE=256
+TASK="csd_ablation"
 # Danh sách GPU chạy song song
 DEVICES=("cuda:0" "cuda:1")
 # DEVICES=("cuda:0")
@@ -25,7 +26,7 @@ eval_ckpt() {
     local DEVICE="$2"
 
     local CKPT_NAME=$(basename "${CKPT_DIR}")
-    local OUTPUT_DIR="${BASE_PATH}/eval_outputs/${CKPT_DIR#/}"
+    local OUTPUT_DIR="${BASE_PATH}/eval_outputs/${TASK}/${CKPT_DIR#/}"
     mkdir -p "${OUTPUT_DIR}"
 
     local LOG_FILE="${OUTPUT_DIR}/eval.log"
@@ -88,10 +89,14 @@ echo "======================================================"
 # Lấy danh sách checkpoint = các thư mục con có config.json hoặc adapter_config.json
 mapfile -t CKPTS < <(
     find "${CKPT_ROOT}" -maxdepth 1 -mindepth 1 -type d | while read d; do
-        if [ -f "$d/config.json" ] || [ -f "$d/adapter_config.json" ]; then echo "$d"; fi
+        if [ -f "$d/config.json" ] || [ -f "$d/adapter_config.json" ]; then
+            epoch=$(basename "$d" | grep -oP 'epoch\K[0-9]+')
+            echo "${epoch} ${d}"
+        fi
     done \
-    | sort \
-    | head -3
+    | sort -n \
+    | head -3 \
+    | awk '{print $2}'
 )
 
 if [ "${#CKPTS[@]}" -eq 0 ]; then
