@@ -11,7 +11,7 @@ MODEL_PATH="facebook/opt-1.3b"
 TOKENIZER="facebook/opt-1.3b"
 # Thư mục cha chứa các checkpoint (mỗi checkpoint là 1 thư mục con tên là số bước)
 LORA_ROOT="distillm-master/results/opt/train/distillm_1.3B_6.7B"
-BATCH_SIZE=64
+BATCH_SIZE=128
 # Danh sách GPU dùng để chạy song song
 # DEVICES=("cuda:0" "cuda:1")
 DEVICES=("cuda:0")

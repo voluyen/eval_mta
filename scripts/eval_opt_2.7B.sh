@@ -1,41 +1,38 @@
 #! /bin/bash
-# Đánh giá TẤT CẢ các checkpoint trong CKPT_ROOT, chia song song trên nhiều GPU.
-# Chế độ nạp model (full / lora) đặt qua biến PEFT bên dưới.
+# Đánh giá TẤT CẢ các checkpoint trong thư mục LoRA của distillm 1.3B<-6.7B,
+# CHIA SONG SONG TRÊN 2 GPU (mỗi GPU đánh giá một nửa số checkpoint).
 # Bỏ qua checkpoint nào đã đánh giá xong (đủ 4 metric ROUGE-L).
 
 SEED=42
 
 # ==== Định nghĩa các biến ====
 BASE_PATH=.
-# Thư mục cha chứa các checkpoint (mỗi checkpoint là 1 thư mục con)
-CKPT_ROOT="distillm-master/results/qwen1.5/distillm_0.5B_1.8B_on_srkl_10"
-# Chế độ: "full" (checkpoint là full-model) hoặc "lora" (checkpoint là adapter)
-PEFT="full"
-# Base model dùng khi PEFT="lora" (full-model thì bỏ qua)
-BASE_MODEL="Qwen/Qwen1.5-0.5B"
-TOKENIZER="Qwen/Qwen1.5-0.5B"
-BATCH_SIZE=64
-# Danh sách GPU chạy song song
-DEVICES=("cuda:0" "cuda:1")
-# DEVICES=("cuda:0")
+MODEL_PATH="facebook/opt-2.7b"
+TOKENIZER="facebook/opt-2.7b"
+# Thư mục cha chứa các checkpoint (mỗi checkpoint là 1 thư mục con tên là số bước)
+LORA_ROOT="distillm-master/results/opt/train/distillm_1.3B_6.7B"
+BATCH_SIZE=128
+# Danh sách GPU dùng để chạy song song
+# DEVICES=("cuda:0" "cuda:1")
+DEVICES=("cuda:0")
 
 # ==== Hàm đánh giá 1 checkpoint trên 1 device ====
 eval_ckpt() {
     local CKPT_DIR="$1"
     local DEVICE="$2"
 
-    local CKPT_NAME=$(basename "${CKPT_DIR}")
-    local OUTPUT_DIR="${BASE_PATH}/eval_outputs/${CKPT_DIR#${BASE_PATH}/}"
+    local CKPT_STEP=$(basename "${CKPT_DIR}")
+    local OUTPUT_DIR="${BASE_PATH}/eval_outputs/${MODEL_PATH}-distillm-${CKPT_STEP}"
     mkdir -p "${OUTPUT_DIR}"
 
     local LOG_FILE="${OUTPUT_DIR}/eval.log"
     if [ -f "${LOG_FILE}" ]; then
         local DONE=$(grep -cE "^(S-NI|Dolly|Self-Instruct|Vicuna) ROUGE-L F1:" "${LOG_FILE}" 2>/dev/null || echo 0)
         if [ "${DONE}" -eq 4 ]; then
-            echo "  [${DEVICE} | ${CKPT_NAME}] SKIP (đã đánh giá xong)"
+            echo "  [${DEVICE} | Step ${CKPT_STEP}] SKIP (đã đánh giá xong)"
             return
         else
-            echo "  [${DEVICE} | ${CKPT_NAME}] Log không đầy đủ (${DONE}/4) — chạy lại"
+            echo "  [${DEVICE} | Step ${CKPT_STEP}] Log không đầy đủ (${DONE}/4) — chạy lại"
             rm -f "${LOG_FILE}"
         fi
     fi
@@ -50,30 +47,25 @@ eval_ckpt() {
     OPTS+=" --student_device ${DEVICE}"
     OPTS+=" --output_dir ${OUTPUT_DIR}"
     OPTS+=" --seed ${SEED}"
+    OPTS+=" --model_path ${MODEL_PATH}"
+    OPTS+=" --lora_path ${CKPT_DIR}"
     OPTS+=" --tokenizer ${TOKENIZER}"
 
-    # Nạp model theo chế độ PEFT
-    if [ "${PEFT}" = "lora" ]; then
-        OPTS+=" --model_path ${BASE_MODEL}"
-        OPTS+=" --lora_path ${CKPT_DIR}"
-    else
-        OPTS+=" --model_path ${CKPT_DIR}"
-    fi
-
-    echo "  [${DEVICE} | ${CKPT_NAME}] Đang đánh giá -> ${LOG_FILE}"
+    echo "  [${DEVICE} | Step ${CKPT_STEP}] Đang đánh giá -> ${LOG_FILE}"
     python src/run_eval.py ${OPTS} >> "${LOG_FILE}" 2>&1
 
     local EXIT_CODE=$?
     if [ ${EXIT_CODE} -eq 0 ]; then
-        echo "  [${DEVICE} | ${CKPT_NAME}] DONE ✓"
+        echo "  [${DEVICE} | Step ${CKPT_STEP}] DONE ✓"
     else
-        echo "  [${DEVICE} | ${CKPT_NAME}] FAILED (exit ${EXIT_CODE}) — xem ${LOG_FILE}"
+        echo "  [${DEVICE} | Step ${CKPT_STEP}] FAILED (exit ${EXIT_CODE}) — xem ${LOG_FILE}"
     fi
 }
 
 # ==== Worker: chạy tuần tự danh sách checkpoint được giao cho 1 GPU ====
 worker() {
-    local DEVICE="$1"; shift
+    local DEVICE="$1"
+    shift
     for CKPT_DIR in "$@"; do
         eval_ckpt "${CKPT_DIR}" "${DEVICE}"
     done
@@ -81,19 +73,17 @@ worker() {
 }
 
 echo "======================================================"
-echo " Đánh giá tất cả checkpoint trong: ${CKPT_ROOT}"
-echo " Batch: ${BATCH_SIZE} | GPU: ${DEVICES[*]}"
+echo " Đánh giá tất cả checkpoint trong: ${LORA_ROOT}"
+echo " Model: ${MODEL_PATH} | Batch: ${BATCH_SIZE}"
+echo " GPU song song: ${DEVICES[*]}"
 echo "======================================================"
 
-# Lấy danh sách checkpoint = các thư mục con có config.json hoặc adapter_config.json
-mapfile -t CKPTS < <(
-    find "${CKPT_ROOT}" -maxdepth 1 -mindepth 1 -type d | sort -V | while read d; do
-        if [ -f "$d/config.json" ] || [ -f "$d/adapter_config.json" ]; then echo "$d"; fi
-    done
-)
+# Lấy danh sách checkpoint (tên là số nguyên), sắp xếp theo số bước
+mapfile -t CKPTS < <(find "${LORA_ROOT}" -maxdepth 1 -mindepth 1 -type d \
+    | grep -E '/[0-9]+$' | sort -t/ -k1 -V)
 
 if [ "${#CKPTS[@]}" -eq 0 ]; then
-    echo "Không tìm thấy checkpoint nào trong ${CKPT_ROOT}"
+    echo "Không tìm thấy checkpoint nào trong ${LORA_ROOT}"
     exit 1
 fi
 
@@ -110,6 +100,7 @@ for ((g=0; g<NGPU; g++)); do
     PIDS+=("$!")
 done
 
+# Chờ tất cả worker hoàn thành
 for pid in "${PIDS[@]}"; do
     wait "${pid}"
 done

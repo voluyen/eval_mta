@@ -7,14 +7,14 @@ SEED=42
 
 # ==== Định nghĩa các biến ====
 BASE_PATH=.
-# Thư mục cha chứa các checkpoint (mỗi checkpoint là 1 thư mục con)
-CKPT_ROOT="distillm-master/results/qwen1.5/distillm_0.5B_1.8B_on_srkl_10"
+# Thư mục cha chứa các checkpoint (mỗi checkpoint là 1 thư mục con, vd: epoch10_step14300_loss7.0408)
+CKPT_ROOT="/teamspace/studios/this_studio/downloaded_ckpt/gpt2/gpt2-medium/mta_dskd_word_level/forward_kl-bf16__teacher_qwen1.5__kd^rate0.5__kd^temp2.0__epoch10__bsz8x1x1x1_8__lr0.0005__proj^lr0.0005"
 # Chế độ: "full" (checkpoint là full-model) hoặc "lora" (checkpoint là adapter)
 PEFT="full"
 # Base model dùng khi PEFT="lora" (full-model thì bỏ qua)
-BASE_MODEL="Qwen/Qwen1.5-0.5B"
-TOKENIZER="Qwen/Qwen1.5-0.5B"
-BATCH_SIZE=64
+BASE_MODEL="openai-community/gpt2-medium"
+TOKENIZER="openai-community/gpt2"
+BATCH_SIZE=256
 # Danh sách GPU chạy song song
 DEVICES=("cuda:0" "cuda:1")
 # DEVICES=("cuda:0")
@@ -25,7 +25,7 @@ eval_ckpt() {
     local DEVICE="$2"
 
     local CKPT_NAME=$(basename "${CKPT_DIR}")
-    local OUTPUT_DIR="${BASE_PATH}/eval_outputs/${CKPT_DIR#${BASE_PATH}/}"
+    local OUTPUT_DIR="${BASE_PATH}/eval_outputs/${CKPT_DIR#/}"
     mkdir -p "${OUTPUT_DIR}"
 
     local LOG_FILE="${OUTPUT_DIR}/eval.log"
