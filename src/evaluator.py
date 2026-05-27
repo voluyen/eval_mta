@@ -155,6 +155,7 @@ class Evaluator:
                         temperature=1.0, # default
                         # temperature=0.7, # default
                         top_p=1.0, # default
+                        top_k=0,
                         stopping_criteria=stopping_criteria,
                     )
                     
