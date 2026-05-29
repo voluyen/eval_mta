@@ -7,16 +7,18 @@ SEED=42
 
 # ==== Định nghĩa các biến ====
 BASE_PATH=.
-# Thư mục cha chứa các checkpoint (mỗi checkpoint là 1 thư mục con)
-CKPT_ROOT="/mnt/phongdq/projects/mta/MTA/distillm-master/results/qwen1.5/spancsd_0.5B_1.8B_on_csd_10/"
+# Thư mục cha chứa các checkpoint (mỗi checkpoint là 1 thư mục con, vd: epoch10_step14300_loss7.0408)
+
+CKPT_ROOT="checkpoints/amid_mta/gpt2-base#amid/ab_pr_0.5_0.5_16_1e-4"
 # Chế độ: "full" (checkpoint là full-model) hoặc "lora" (checkpoint là adapter)
 PEFT="full"
 # Base model dùng khi PEFT="lora" (full-model thì bỏ qua)
-BASE_MODEL="Qwen/Qwen1.5-0.5B"
-TOKENIZER="Qwen/Qwen1.5-0.5B"
+BASE_MODEL="openai-community/gpt2"
+TOKENIZER="openai-community/gpt2"
 BATCH_SIZE=64
+TASK="amid_mta_ab"
 # Danh sách GPU chạy song song
-DEVICES=("cuda:0")
+DEVICES=("cuda:0" "cuda:1")
 # DEVICES=("cuda:0")
 
 # ==== Hàm đánh giá 1 checkpoint trên 1 device ====
@@ -25,7 +27,7 @@ eval_ckpt() {
     local DEVICE="$2"
 
     local CKPT_NAME=$(basename "${CKPT_DIR}")
-    local OUTPUT_DIR="${BASE_PATH}/eval_outputs/${CKPT_DIR#${BASE_PATH}/}"
+    local OUTPUT_DIR="${BASE_PATH}/eval_outputs/${TASK}/${CKPT_DIR#/}"
     mkdir -p "${OUTPUT_DIR}"
 
     local LOG_FILE="${OUTPUT_DIR}/eval.log"
@@ -85,12 +87,38 @@ echo " Đánh giá tất cả checkpoint trong: ${CKPT_ROOT}"
 echo " Batch: ${BATCH_SIZE} | GPU: ${DEVICES[*]}"
 echo "======================================================"
 
-# Lấy danh sách checkpoint = các thư mục con có config.json hoặc adapter_config.json
+# Lấy checkpoint cuối của mỗi experiment bên dưới CKPT_ROOT.
+# Hoạt động với cả:
+#   - CKPT_ROOT trỏ trực tiếp vào 1 experiment chứa các step 714/1428/...
+#   - CKPT_ROOT trỏ vào folder lớn chứa nhiều experiment con.
+
 mapfile -t CKPTS < <(
-    find "${CKPT_ROOT}" -maxdepth 1 -mindepth 1 -type d | sort -rV | while read d; do
+    find "${CKPT_ROOT}" -maxdepth 1 -mindepth 1 -type d | while read d; do
         if [ -f "$d/config.json" ] || [ -f "$d/adapter_config.json" ]; then echo "$d"; fi
     done
 )
+
+# mapfile -t CKPTS < <(
+#     find "${CKPT_ROOT}" -mindepth 1 -type f \( -name "config.json" -o -name "adapter_config.json" \) | \
+#     while read f; do
+#         dirname "$f"
+#     done | sort -uV | awk '
+#         {
+#             parent = $0
+#             sub("/[^/]+$", "", parent)
+#             if (prev_parent != "" && parent != prev_parent) {
+#                 print last
+#             }
+#             prev_parent = parent
+#             last = $0
+#         }
+#         END {
+#             if (last != "") {
+#                 print last
+#             }
+#         }
+#     '
+# )
 
 if [ "${#CKPTS[@]}" -eq 0 ]; then
     echo "Không tìm thấy checkpoint nào trong ${CKPT_ROOT}"

@@ -8,13 +8,20 @@ Chạy từ thư mục gốc dự án:
 """
 
 import argparse
+import json
 import re
 from collections import defaultdict
 from pathlib import Path
 
-import pandas as pd
-
 DATASETS = ["Dolly", "Self-Instruct", "Vicuna", "S-NI"]
+DATASET_ALIASES = {
+    "dolly": "Dolly",
+    "self_instruct": "Self-Instruct",
+    "self-instruct": "Self-Instruct",
+    "vicuna": "Vicuna",
+    "sni": "S-NI",
+    "s-ni": "S-NI",
+}
 STEP_PAT = re.compile(r"^(\d+)$|^epoch\d+_step(\d+)")
 
 
@@ -26,6 +33,33 @@ def parse_log(log_path: Path) -> dict[str, float] | None:
         matches = pat.findall(text)
         if matches:
             scores[dataset] = float(matches[-1])
+
+    # eval_generate.py format:
+    #   dolly            ROUGE-L: 24.04
+    for key, dataset in DATASET_ALIASES.items():
+        pat = re.compile(rf"^\s*{re.escape(key)}\s+ROUGE-L:\s+([\d.]+)", re.MULTILINE)
+        matches = pat.findall(text)
+        if matches:
+            scores[dataset] = float(matches[-1])
+    return scores if scores else None
+
+
+def parse_json_scores(json_path: Path) -> dict[str, float] | None:
+    try:
+        data = json.loads(json_path.read_text())
+    except json.JSONDecodeError:
+        return None
+
+    scores = {}
+    for key, value in data.items():
+        dataset = DATASET_ALIASES.get(key.lower())
+        if not dataset or not isinstance(value, dict):
+            continue
+
+        score = value.get("rouge_l_avg", value.get("rouge_l_f1"))
+        if isinstance(score, (int, float)):
+            scores[dataset] = float(score)
+
     return scores if scores else None
 
 
@@ -36,32 +70,54 @@ def extract_step(name: str) -> int | None:
     return int(m.group(1) or m.group(2))
 
 
-def collect_results(eval_root: Path) -> dict[str, pd.DataFrame]:
+def collect_results(eval_root: Path) -> dict[str, list[dict]]:
     experiments: dict[str, list] = defaultdict(list)
+    seen_ckpt_dirs = set()
 
-    for log_path in sorted(eval_root.rglob("eval.log")):
-        ckpt_dir = log_path.parent
+    result_paths = (
+        sorted(eval_root.rglob("scores.json"))
+        + sorted(eval_root.rglob("eval.json"))
+        + sorted(eval_root.rglob("eval.log"))
+    )
+
+    for result_path in result_paths:
+        ckpt_dir = result_path.parent
+        if ckpt_dir in seen_ckpt_dirs:
+            continue
         parent_dir = ckpt_dir.parent
-        scores = parse_log(log_path)
+        if result_path.suffix == ".json":
+            scores = parse_json_scores(result_path)
+        else:
+            scores = parse_log(result_path)
         if not scores:
             continue
+        seen_ckpt_dirs.add(ckpt_dir)
         step = extract_step(ckpt_dir.name)
-        exp_key = str(parent_dir.relative_to(eval_root))
+        try:
+            exp_key = str(parent_dir.relative_to(eval_root))
+        except ValueError:
+            # Bỏ qua file tổng hợp nằm ngay tại eval_root, không thuộc checkpoint nào.
+            continue
         label = step if step is not None else ckpt_dir.name
         experiments[exp_key].append((label, scores))
 
-    dataframes = {}
+    tables = {}
     for exp_key, entries in experiments.items():
-        rows = [{"step": label, **scores} for label, scores in entries]
-        df = pd.DataFrame(rows)
-        if all(isinstance(v, int) for v in df["step"]):
-            df = df.sort_values("step").reset_index(drop=True)
-            df["step"] = df["step"].astype(int)
-        score_cols = [d for d in DATASETS if d in df.columns]
-        df["Avg"] = df[score_cols].mean(axis=1).round(2)
-        dataframes[exp_key] = df
+        rows = []
+        for label, scores in entries:
+            row = {"step": label, **scores}
+            score_cols = [d for d in DATASETS if d in row]
+            row["Avg"] = round(sum(row[d] for d in score_cols) / len(score_cols), 2)
+            rows.append(row)
 
-    return dataframes
+        if all(isinstance(row["step"], int) for row in rows):
+            rows = sorted(rows, key=lambda row: row["step"])
+        else:
+            rows = sorted(rows, key=lambda row: str(row["step"]))
+
+        tables[exp_key] = rows
+
+    return tables
 
 
 def short_label(exp_key: str) -> str:
@@ -73,17 +129,19 @@ def short_label(exp_key: str) -> str:
 
 def fmt_val(col: str, val) -> str:
     if col == "step":
-        return str(int(val)) if pd.notna(val) else "-"
-    return f"{val:.2f}" if pd.notna(val) else "-"
+        return str(val) if val is not None else "-"
+    if isinstance(val, (int, float)):
+        return f"{val:.2f}"
+    return "-"
 
 
-def print_table(exp_key: str, df: pd.DataFrame):
+def print_table(exp_key: str, rows: list[dict]):
     label = short_label(exp_key)
-    score_cols = [d for d in DATASETS if d in df.columns] + ["Avg"]
+    score_cols = [d for d in DATASETS if any(d in row for row in rows)] + ["Avg"]
     cols = ["step"] + score_cols
 
     # Format tất cả giá trị thành string trước
-    formatted = [[fmt_val(c, row[c]) for c in cols] for _, row in df.iterrows()]
+    formatted = [[fmt_val(c, row.get(c)) for c in cols] for row in rows]
     col_widths = {c: max(len(c), max(len(r[i]) for r in formatted))
                   for i, c in enumerate(cols)}
 
@@ -103,7 +161,7 @@ def print_table(exp_key: str, df: pd.DataFrame):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--eval_root", default="eval_mta/eval_outputs/results")
+    parser.add_argument("--eval_root", default="./eval_outputs/checkpoints/csd/qwen1.5/csd")
     args = parser.parse_args()
 
     eval_root = Path(args.eval_root)
@@ -113,11 +171,11 @@ def main():
 
     all_data = collect_results(eval_root)
     if not all_data:
-        print("Không tìm thấy eval.log nào có kết quả hợp lệ.")
+        print("Không tìm thấy scores.json/eval.json/eval.log nào có kết quả hợp lệ.")
         return
 
-    for exp_key, df in all_data.items():
-        print_table(exp_key, df)
+    for exp_key, rows in all_data.items():
+        print_table(exp_key, rows)
 
     print()
 
