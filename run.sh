@@ -10,7 +10,7 @@ HF_REPO="VoCuc/mta-dskd"
 DOWNLOAD_ROOT="${BASE_PATH}/checkpoints"
 OUTPUT_ROOT="${BASE_PATH}/eval_outputs"
 BATCH_SIZE="${BATCH_SIZE:-64}"
-DEVICES=("${DEVICES[@]:-cuda:2}")
+DEVICES=("${DEVICES[@]:-cuda:3}")
 DWA_CKPTS=(
     "dwa_mta/gpt2/gpt2-medium/span_dwa_kd/criterion=dwa_kd__skewed_reverse_kl-bf16__teacher=Qwen1.5_1.8B_SFT_Dolly__kd^rate=0.5__kd^temp=2.0__epoch=10__bsz=16x2x1=32__lr=0.0005__proj^lr=0.001/epoch10_step3570"
     "dwa_mta/gpt2/gpt2-xl/span_dwa_kd/criterion=dwa_kd__skewed_reverse_kl-lora-rank=256-alpha=8-dropout=0.1-bf16__teacher=Qwen2.5-7B-Instruct-Dolly-SFT__kd^rate=0.5__kd^temp=2.0__epoch=10__bsz=16x2x1=32__lr=0.001__proj^lr=0.001/epoch10_step3570"
