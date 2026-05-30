@@ -9,16 +9,25 @@ SEED=42
 BASE_PATH=.
 # TODO: điền thư mục cha chứa các checkpoint (mỗi checkpoint là 1 thư mục con).
 # Gợi ý từ lora_path cũ: distillm-master/results/llama/3b_sft/e3-bs8-lr0.0001-G1-N2-NN1-lora-16-64-0.05
-CKPT_ROOT="..."
+CKPT_ROOT="checkpoints/rerun/tinyllama/tinyllama-1.1B/mta_dskd_v2_eta/adaptive_kl-bf16__teacher_mistral7b__kd^rate0.5__kd^temp2.0__epoch10__bsz16x2x1x1_32__lr0.001__proj^lr0.001"
 # Chế độ: "full" (checkpoint là full-model) hoặc "lora" (checkpoint là adapter)
 PEFT="lora"
-# Base model dùng khi PEFT="lora" (full-model thì bỏ qua)
-BASE_MODEL="model_hub/tinyllama/tinyllama-1.1b-3T"
-TOKENIZER="model_hub/tinyllama/tinyllama-1.1b-3T"
-BATCH_SIZE=80
+# Base model khi PEFT="lora". Ghi đè bằng: BASE_MODEL=... TOKENIZER=... bash scripts/eval_tinyllama.sh
+resolve_tinyllama_base() {
+    if [ -d "${BASE_PATH}/model_hub/tinyllama/tinyllama-1.1b-3T" ]; then
+        echo "${BASE_PATH}/model_hub/tinyllama/tinyllama-1.1b-3T"
+    elif [ -d "${BASE_PATH}/model_hub/tinyllama/tinyllama-1.1B" ]; then
+        echo "${BASE_PATH}/model_hub/tinyllama/tinyllama-1.1B"
+    else
+        echo "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T"
+    fi
+}
+BASE_MODEL="${BASE_MODEL:-$(resolve_tinyllama_base)}"
+TOKENIZER="${TOKENIZER:-${BASE_MODEL}}"
+BATCH_SIZE=32
 # Danh sách GPU chạy song song
-DEVICES=("cuda:0" "cuda:1")
-# DEVICES=("cuda:0")
+# DEVICES=("cuda:0" "cuda:1")
+DEVICES=("cuda:0")
 
 # ==== Hàm đánh giá 1 checkpoint trên 1 device ====
 eval_ckpt() {
@@ -83,6 +92,7 @@ worker() {
 
 echo "======================================================"
 echo " Đánh giá tất cả checkpoint trong: ${CKPT_ROOT}"
+echo " PEFT: ${PEFT} | Base: ${BASE_MODEL}"
 echo " Batch: ${BATCH_SIZE} | GPU: ${DEVICES[*]}"
 echo "======================================================"
 
