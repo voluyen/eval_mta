@@ -43,10 +43,10 @@ mapfile -t RESIDUAL_CKPTS < <(
 # results/gpt2/train/spanresidual_mta_B_0.35B_qwen1.8B/10003
 results/gpt2/train/spanresidual_paper_E_1.5B_qwen2.5-7B/14290
 results/gpt2/train/spanresidual_mta_E_1.5B_qwen2.5-7B/11432
-results/llama/train/spanresidual_paper_tinyllama-1.1B_mistral-7B/14290
-results/llama/train/spanresidual_mta_tinyllama-1.1B_mistral-7B_5e-4/8574
-results/opt/train/spanresidual_paper_opt-2.7B_qwen2.5-7B/14290
-results/opt/train/spanresidual_mta_opt-2.7B_qwen2.5-7B_5e-4/14290
+# results/llama/train/spanresidual_paper_tinyllama-1.1B_mistral-7B/14290
+# results/llama/train/spanresidual_mta_tinyllama-1.1B_mistral-7B_5e-4/8574
+# results/opt/train/spanresidual_paper_opt-2.7B_qwen2.5-7B/14290
+# results/opt/train/spanresidual_mta_opt-2.7B_qwen2.5-7B_5e-4/14290
 EOF
 )
 CHECKPOINT_ROOTS=(
