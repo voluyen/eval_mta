@@ -34,16 +34,16 @@ def main():
             model_path=extras.model_path,
             distilled_lora=extras.lora_path,
             device=args.student_device,
-            # seeds=[10, 20, 30, 40, 50]
-            seeds=[30, 40, 50]
+            seeds=[10, 20, 30, 40, 50]
+            # seeds=[30, 40, 50]
         )
     else:
         evaluator = Evaluator(
             tokenizer_path=extras.tokenizer,
             model_path=extras.model_path,
             device=args.student_device,
-            # seeds=[10, 20, 30, 40, 50]
-            seeds=[30, 40, 50]
+            seeds=[10, 20, 30, 40, 50]
+            # seeds=[30, 40, 50]
         )
     
     evaluator.model.config.output_hidden_states=False

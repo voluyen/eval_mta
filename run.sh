@@ -7,25 +7,34 @@ set -euo pipefail
 SEED=42
 BASE_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HF_REPO="VoCuc/mta-dskd"
+AMID_REPO="VoCuc/amid-mta"
 DOWNLOAD_ROOT="${BASE_PATH}/checkpoints"
 OUTPUT_ROOT="${BASE_PATH}/eval_outputs"
 BATCH_SIZE="${BATCH_SIZE:-64}"
-DEVICES=("${DEVICES[@]:-cuda:3}")
+# Space-separated GPU list. Example:
+#   DEVICE_LIST="cuda:0 cuda:1" bash run.sh
+DEVICE_LIST="${DEVICE_LIST:-cuda:1}"
+read -r -a DEVICES <<< "${DEVICE_LIST}"
 DWA_CKPTS=(
     "dwa_mta/gpt2/gpt2-medium/span_dwa_kd/criterion=dwa_kd__skewed_reverse_kl-bf16__teacher=Qwen1.5_1.8B_SFT_Dolly__kd^rate=0.5__kd^temp=2.0__epoch=10__bsz=16x2x1=32__lr=0.0005__proj^lr=0.001/epoch10_step3570"
     "dwa_mta/gpt2/gpt2-xl/span_dwa_kd/criterion=dwa_kd__skewed_reverse_kl-lora-rank=256-alpha=8-dropout=0.1-bf16__teacher=Qwen2.5-7B-Instruct-Dolly-SFT__kd^rate=0.5__kd^temp=2.0__epoch=10__bsz=16x2x1=32__lr=0.001__proj^lr=0.001/epoch10_step3570"
     "dwa_mta/gpt2/gpt2-base/dwa_kd_word_level/criterion=dwa_kd__skewed_reverse_kl-bf16__teacher=Qwen1.5_1.8B_SFT_Dolly__kd^rate=0.5__kd^temp=2.0__epoch=10__bsz=16x2x1=32__lr=0.0005__proj^lr=0.001/epoch10_step3570"
 )
 CHECKPOINT_ROOTS=(
-    "${DOWNLOAD_ROOT}/rerun"
-    "${DOWNLOAD_ROOT}/dwa_mta"
+    # "${DOWNLOAD_ROOT}/rerun"
+    # "${DOWNLOAD_ROOT}/dwa_mta"
+    "${DOWNLOAD_ROOT}/rerun/tinyllama"
+    "${DOWNLOAD_ROOT}/amid_mta"
+
 )
 
 if ! command -v python >/dev/null 2>&1; then
     if command -v conda >/dev/null 2>&1; then
         # Make the script usable from a fresh shell where conda is not active.
+        set +u
         source "$(conda info --base)/etc/profile.d/conda.sh"
         conda activate mta
+        set -u
     fi
 fi
 
@@ -61,6 +70,16 @@ download_checkpoints() {
 
     hf download "${HF_REPO}" "${include_args[@]}" \
         --local-dir "${DOWNLOAD_ROOT}" \
+        --max-workers 4
+
+    echo "======================================================"
+    echo " Download AMID checkpoints"
+    echo " Repo       : ${AMID_REPO}"
+    echo " Local dir  : ${DOWNLOAD_ROOT}/amid_mta"
+    echo "======================================================"
+
+    hf download "${AMID_REPO}" \
+        --local-dir "${DOWNLOAD_ROOT}/amid_mta" \
         --max-workers 4
 }
 
@@ -119,7 +138,13 @@ eval_ckpt() {
                 base_model="facebook/opt-1.3b"
                 ;;
             *tinyllama*|*TinyLlama*)
-                base_model="model_hub/tinyllama/tinyllama-1.1b-3T"
+                if [ -d "${BASE_PATH}/model_hub/tinyllama/tinyllama-1.1b-3T" ]; then
+                    base_model="${BASE_PATH}/model_hub/tinyllama/tinyllama-1.1b-3T"
+                elif [ -d "${BASE_PATH}/model_hub/tinyllama/tinyllama-1.1B" ]; then
+                    base_model="${BASE_PATH}/model_hub/tinyllama/tinyllama-1.1B"
+                else
+                    base_model="TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T"
+                fi
                 ;;
         esac
 
@@ -194,16 +219,22 @@ for ckpt_root in checkpoint_roots:
     for marker_name in ("config.json", "adapter_config.json"):
         for marker in ckpt_root.rglob(marker_name):
             ckpt_dir = marker.parent
-            match = re.match(r"epoch(9|10)(?:_|$)", ckpt_dir.name)
-            if not match:
+            epoch_match = re.match(r"epoch(9|10)(?:_|$)", ckpt_dir.name)
+            step_match = re.fullmatch(r"\d+", ckpt_dir.name)
+            if not epoch_match and not step_match:
                 continue
 
-            epoch = int(match.group(1))
+            # Priority: epoch10 > epoch9 > numeric step directories like 3570.
+            if epoch_match:
+                priority = int(epoch_match.group(1)) * 1_000_000
+            else:
+                priority = int(step_match.group(0))
+
             exp_dir = ckpt_dir.parent
             rel = ckpt_dir.relative_to(download_root)
             prev = best.get(exp_dir)
-            if prev is None or epoch > prev[0]:
-                best[exp_dir] = (epoch, rel, ckpt_dir)
+            if prev is None or priority > prev[0]:
+                best[exp_dir] = (priority, rel, ckpt_dir)
 
 for _, _, ckpt_dir in sorted(best.values(), key=lambda item: str(item[1])):
     print(ckpt_dir)
