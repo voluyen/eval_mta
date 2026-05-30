@@ -9,13 +9,13 @@ SEED=42
 BASE_PATH=.
 # Thư mục cha chứa các checkpoint (mỗi checkpoint là 1 thư mục con, vd: epoch10_step14300_loss7.0408)
 
-CKPT_ROOT="checkpoints/amid_mta/gpt2-base#amid/ab_pr_0.5_0.5_16_1e-4"
+CKPT_ROOT="eval_mta/checkpoints/amid_mta/gpt2-base#amid/ab_pr_0.5_0.5_16_1e-4"
 # Chế độ: "full" (checkpoint là full-model) hoặc "lora" (checkpoint là adapter)
 PEFT="full"
 # Base model dùng khi PEFT="lora" (full-model thì bỏ qua)
 BASE_MODEL="openai-community/gpt2"
 TOKENIZER="openai-community/gpt2"
-BATCH_SIZE=64
+BATCH_SIZE=32
 TASK="amid_mta_ab"
 # Danh sách GPU chạy song song
 DEVICES=("cuda:0" "cuda:1")

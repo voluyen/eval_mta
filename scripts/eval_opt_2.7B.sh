@@ -11,7 +11,7 @@ MODEL_PATH="facebook/opt-1.3b"
 TOKENIZER="facebook/opt-1.3b"
 # Thư mục cha chứa checkpoint LoRA. Có thể trỏ trực tiếp vào 1 experiment
 # hoặc folder lớn chứa nhiều experiment con.
-LORA_ROOT="checkpoints/amid_mta_ckpt/turn2/opt-1.3B#amid/ab_pr_0.5_0.5_16_5e-4_mta"
+LORA_ROOT="checkpoints/amid_mta/turn2/opt-1.3B#amid/ab_pr_0.5_0.5_16_5e-4_mta"
 BATCH_SIZE=64
 # Danh sách GPU dùng để chạy song song
 DEVICES=("cuda:0" "cuda:1")
