@@ -10,34 +10,37 @@ BASE_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # run_eval.py uses relative paths ./data/... so must run from BASE_PATH
 cd "${BASE_PATH}"
 OUTPUT_ROOT="${BASE_PATH}/eval_outputs/hf_models"
+VENV_DIR="${BASE_PATH}/.venv"
+PYTHON="${VENV_DIR}/bin/python"
 
-DEVICE_LIST="${DEVICE_LIST:-cuda:1}"
+# ── Auto-setup venv nếu chưa tồn tại ──────────────────────────────────────
+if [ ! -f "${PYTHON}" ]; then
+    echo "======================================================"
+    echo " .venv not found — running setup_env.sh first"
+    echo "======================================================"
+    bash "${BASE_PATH}/setup_env.sh"
+fi
+
+DEVICE_LIST="${DEVICE_LIST:-cuda:0 cuda:1 cuda:2 cuda:3 cuda:4 cuda:5 cuda:6 cuda:7}"
 read -r -a DEVICES <<< "${DEVICE_LIST}"
 
 # Model list: "<hf_model_id>|<batch_size>"
 # Batch rules: <1B → 128, <2B → 64, else → 32
 HF_MODELS=(
-    "HoangTran223/MCW_KD_GPTXL_SFT|16"
-    "HoangTran223/MCW_KD_TinyLLama_SFT|16"
-    "MiniLLM/SFT-gpt2-120M|128"
-    "MiniLLM/SFT-gpt2-340M|128"
-    "MiniLLM/SFT-OPT-1.3B|64"
-    "MiniLLM/teacher-gpt2-1.5B|64"
-    "VoCuc/Qwen1.5_1.8B_SFT|64"
-    "MiniLLM/SFT-OPT-2.7B|32"
-    "VoCuc/Qwen2.5-7B-Instruct-Dolly-SFT|16"
-    "VoCuc/Mistral7B_Dolly_SFT|16"
-    "MiniLLM/SFT-OPT-6.7B|16"
+    "HoangTran223/MCW_KD_GPTXL_SFT|32"      # GPT2-XL ~1.5B  → <2B
+    "HoangTran223/MCW_KD_TinyLLama_SFT|32"   # TinyLlama 1.1B → <2B
+    "MiniLLM/SFT-gpt2-120M|128"              # 0.12B → <1B
+    "MiniLLM/SFT-gpt2-340M|128"              # 0.34B → <1B
+    "MiniLLM/SFT-OPT-1.3B|32"               # 1.3B  → <2B
+    "MiniLLM/teacher-gpt2-1.5B|32"           # 1.5B  → <2B
+    "VoCuc/Qwen1.5_1.8B_SFT|32"             # 1.8B  → <2B
+    "MiniLLM/SFT-OPT-2.7B|32"               # 2.7B  → ≥2B
+    "VoCuc/Qwen2.5-7B-Instruct-Dolly-SFT|16" # 7B   → ≥2B
+    "VoCuc/Mistral7B_Dolly_SFT|16"           # 7B    → ≥2B
+    "MiniLLM/SFT-OPT-6.7B|16"               # 6.7B  → ≥2B
 )
 
-if ! command -v python >/dev/null 2>&1; then
-    if command -v conda >/dev/null 2>&1; then
-        set +u
-        source "$(conda info --base)/etc/profile.d/conda.sh"
-        conda activate mta
-        set -u
-    fi
-fi
+# Always use the isolated venv — no conda activation needed
 
 is_eval_done() {
     local log_file="$1"
@@ -71,7 +74,7 @@ eval_hf_model() {
 
     local opts=""
     opts+=" --train_data ${BASE_PATH}/data/dolly/train.jsonl"
-    opts+=" --val_data ${BASE_PATH}/data/dolly/dev.jsonl"
+    opts+=" --val_data ${BASE_PATH}/data/dolly/valid.jsonl"
     opts+=" --test_data ${BASE_PATH}/data/dolly/valid.jsonl"
     opts+=" --teacher_layers_mapping 32"
     opts+=" --student_encoder_layers_finetuned 22"
@@ -84,7 +87,7 @@ eval_hf_model() {
 
     echo "  [${device} | ${model_id}] batch=${batch_size} -> ${log_file}"
     set +e
-    python "${BASE_PATH}/src/run_eval.py" ${opts} >> "${log_file}" 2>&1
+    "${PYTHON}" "${BASE_PATH}/src/run_eval.py" ${opts} >> "${log_file}" 2>&1
     local exit_code=$?
     set -e
 
