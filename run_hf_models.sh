@@ -17,6 +17,8 @@ read -r -a DEVICES <<< "${DEVICE_LIST}"
 # Model list: "<hf_model_id>|<batch_size>"
 # Batch rules: <1B → 128, <2B → 64, else → 32
 HF_MODELS=(
+    "HoangTran223/MCW_KD_GPTXL_SFT|16"
+    "HoangTran223/MCW_KD_TinyLLama_SFT|16"
     "MiniLLM/SFT-gpt2-120M|128"
     "MiniLLM/SFT-gpt2-340M|128"
     "MiniLLM/SFT-OPT-1.3B|64"
